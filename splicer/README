@@ -1,0 +1,81 @@
+              NOTES
+
+Splicer only works with sequences in FASTA format.
+
+              HOW TO INSTALL SPLICER
+
+Splicer is self-contained. You must have Python installed to run it though.
+
+Once you have Splicer downloaded, make it executable via
+  
+  chmod +x path_to_splicer/splicer
+
+For example, if splicer is in your current directory, then you can just
+use
+  
+  chmod +x ./splicer
+
+To test, try out splicer on the example alignment file provided. Run
+
+  ./splicer count example.fa
+
+and you should see the output:
+ 
+  Counted 36 sequences.
+
+              HOW TO GET HELP IN SPLICER
+
+Type
+
+  splicer
+
+to get a list of available commands. For each command you can run
+
+  splicer help command
+
+to get additional help on that command.
+
+              HOW TO USE SPLICER TO PERFORM HAND CURATION
+
+This short writeup explains how to use splicer to perform computer-assisted
+hand curation. We will demonstrate this process on an example multiple
+alignment that is provided with Splicer.
+
+We are interested in hand-curating short hypervariable regions
+in 16S sequences. The trick to do that is to first cut out the piece of our
+multiple alignment that contains the hypervariable region.  In the example
+file the hypervariable region lies between columns 202 and 236 (inclusive).
+So we cut them out using:
+
+  splicer cut example.fa 202-236 > cut.fa
+
+Now we can dereplicate these cut sequences.
+
+  splicer dereplicate cut.fa
+  
+Now cut.fa.derepl contains 14 sequences (from the initial 36). Now, we can align
+these sequences manually using an alignment program such as Jalview.
+
+Once these sequences are aligned, we can merge them back into the original
+alignment
+
+./splicer merge cut.fa.derepl into example.fa 202-236 > merged.fa
+
+Now, look at merged.fa.  You will notice that our changes got merged back into
+all 36 sequences of the large alignment, even though we only had to align 14.
+
+              LICENSE
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+
+ You should have received a copy of the GNU General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+

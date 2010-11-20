@@ -1,0 +1,812 @@
+#!/usr/bin/python
+
+# Copyright 2010 Maksim Sipos, Nick Chia
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import sys
+import getopt
+import re
+import random
+
+def print_usage():
+    print >>sys.stderr, "  Usage:"
+    print >>sys.stderr, "    'splicer COMMAND [INPUT_FILE] COMMAND_OPTIONS'"
+    print >>sys.stderr, ""
+    print >>sys.stderr, "  where COMMAND is one of:"
+    sarr = cmds.keys()
+    sarr.sort()
+    for cmd in sarr:
+        print >>sys.stderr, "    %18s   %s" % (cmd, cmds[cmd][3])
+
+def print_extra():
+    print >>sys.stderr, "  Note:"
+    print >>sys.stderr, "In splicer, ranges A-B are always indexed starting"
+    print >>sys.stderr, "at 1. They also include the letters at the ends. That"
+    print >>sys.stderr, "is, 4-6 means columns 4, 5 and 6."
+
+def do_help(command_opts):
+    if len(command_opts) == 0:
+        command_opts = ["help"]
+
+    for cmd in command_opts:
+        if cmd in cmds.keys():
+            arr = cmds[cmd]
+            print >>sys.stderr, "  Usage:"
+            print >>sys.stderr, "splicer %s" % arr[1]
+            print >>sys.stderr, ""
+            print >>sys.stderr, arr[3]
+            print >>sys.stderr, ""
+            print >>sys.stderr, "  Long description:"
+            print >>sys.stderr, arr[2]
+            print >>sys.stderr, ""
+            print_extra()
+    sys.exit(0)
+
+#####################################################################
+# Utils
+#####################################################################
+
+class InvalidFastaError(Exception):
+    pass
+
+# Iterator over a Fasta file.
+class FastaFile:
+    def __init__(self, filename):
+        self.filename = filename
+        self.f = open(filename, "r")
+        line = self.f.readline().strip()
+        if len(line) == 0 or line[0] != '>':
+            raise InvalidFastaError()
+        self.cur = line[1:]
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.cur == '':
+            raise StopIteration()
+
+        seq_id = self.cur
+        seq = ''
+        while True:
+            line = self.f.readline()
+            if line == '':
+                # End of file
+                self.cur = ''
+                return (seq_id, seq)
+            line = line.strip()
+            if line == '':
+                continue
+            if line[0] == '>':
+                self.cur = line[1:]
+                return (seq_id, seq)
+            seq += line
+
+# Interpret a range
+def interpret_range(rng):
+    result = re.match(r'^(\d*)-(\d*)$', rng);
+    a = int(result.group(1))
+    b = int(result.group(2))
+    return (a, b)
+
+# Split a sequence (or string) into pieces of a given length.
+def split_into_pieces(seq, length):
+    return [seq[i:i+length] for i in range(0, len(seq), length)]
+
+# Write out a single sequence in FASTA format
+def write_fasta(sequence_id, sequence):
+    print ">%s" % sequence_id
+    for piece in split_into_pieces(sequence, 72):
+        print piece
+
+# Write out a single sequence in FASTA format
+def write_fasta_to_file(f, seq_id, seq):
+    print >>f, ">%s" % seq_id
+    for piece in split_into_pieces(seq, 72):
+        print >>f, piece
+
+# Degap a sequence (i.e. return a string with the sequence without the gaps)
+#def degap(sequence):
+#    result = ''
+#    for c in sequence:
+#        if c.isalpha():
+#            result = result + c
+#    return result
+def degap(seq):
+    r = seq.replace('-', '')
+    r = r.replace('.', '')
+    return r
+
+# Capitalize a sequence
+def capitalize(sequence):
+    return sequence.upper()
+
+def is_gap(letter):
+    if letter == '.' or letter == '-':
+        return True
+    return False
+
+#####################################################################
+# Commands
+#####################################################################
+
+def do_abund(opts):
+    filename = opts[0]
+
+    uniq = {}
+    names = {}
+    for seq_id, seq in FastaFile(filename):
+        if seq not in uniq:
+            uniq[seq] = 1
+            names[seq] = seq_id
+        else:
+            uniq[seq] += 1
+
+    for key in uniq.keys():
+        print "{0} {1}".format(names[key], uniq[key])
+
+def do_abundall(opts):
+    filename = opts[0]
+
+    # seq -> group
+    uniq = {}
+    # seq_name -> group
+    map1 = {}
+    # group -> abundance
+    map2 = {}
+
+    newgroup = 1
+    for seq_id, seq in FastaFile(filename):
+        if seq not in uniq:
+            uniq[seq] = newgroup
+            map2[newgroup] = 0
+            newgroup += 1
+        group = uniq[seq]
+        map2[group] += 1
+        map1[seq_id] = group
+
+    for k in map1.keys():
+        print "%s %d" % (k, map2[map1[k]])
+
+def do_capitalize(opts):
+    filename = opts[0]
+
+    for seq_id, seq in FastaFile(filename):
+        write_fasta(seq_id, capitalize(seq))
+
+def do_count(opts):
+    filename = opts[0]
+
+    num = 0
+    for seq_id, seq in FastaFile(filename):
+        num = num + 1
+
+    print("Counted %d sequences." % num)
+
+def do_cull(opts):
+    filename_fasta = opts[0]
+    filename_list = opts[1]
+
+    f = open(filename_list)
+    to_remove = set()
+    for line in f:
+        to_remove.add(line.strip())
+
+    for seq_id, seq in FastaFile(filename_fasta):
+        if seq_id not in to_remove:
+            write_fasta(seq_id, seq)
+
+def do_cut(opts):
+    filename = opts[0]  # FASTA filename
+    rng = opts[1]       # Range of nucleotides to cut
+
+    # Parse the range
+    a, b = interpret_range(rng)
+
+    # Load the FASTA
+    for seq_id, seq in FastaFile(filename):
+        # Write out snipped sequence
+        write_fasta(seq_id, seq[a-1:b])
+
+def do_degap(opts):
+    filename = opts[0]
+
+    for seq_id, seq in FastaFile(filename):
+        dseq = degap(seq)
+        write_fasta(seq_id, dseq)
+
+def do_find(opts):
+    filename = opts[0]
+    ndx = int(opts[1])
+
+    for seq_id, seq in FastaFile(filename):
+        if seq[ndx - 1] != '-':
+            print "Sequence id '%s' has '%s' in %d-th column." % (seq_id,
+                  seq[ndx-1], ndx)
+
+def do_findgap(opts):
+    filename = opts[0]
+    ndx = int(opts[1])
+
+    for seq_id, seq in FastaFile(filename):
+        if seq[ndx - 1] == '-':
+            print "Sequence id '%s' has '%s' in %d-th column." % (seq_id,
+                  seq[ndx-1], ndx)
+
+def do_fixjalview(opts):
+    filename = opts[0]
+
+    for seq_id, seq in FastaFile(filename):
+        idx = seq_id.rfind("/")
+        if idx != -1:
+            seq_id = seq_id[0:idx]
+        write_fasta(seq_id, seq)
+
+def do_merge(opts):
+    filename_aligned = opts[0]
+    # opts[1] should be "into"
+    filename_unaligned = opts[2]
+    rng = opts[3]
+    a, b = interpret_range(rng)
+
+    # Construct a dictionary of aligned sequences
+    map_dict = {} # ungapped -> sequence snippet
+    l_mapped = 0
+    for seq_id, seq in FastaFile(filename_aligned):
+        map_dict[degap(seq)] = capitalize(seq)
+        l_mapped = len(seq)
+
+    # Put in the aligned sequences
+    for seq_id, seq in FastaFile(filename_unaligned):
+        full_seq = capitalize(seq)
+        header = full_seq[0:a-1]
+        snippet = full_seq[a-1:b]
+        footer = full_seq[b:]
+
+        degap_seq = degap(snippet)
+        replacement = None
+        if degap_seq == '':
+            replacement = l_mapped * ' '
+        else:
+            if degap_seq not in map_dict:
+                raise Exception(
+                  "Could not find '%s' (sequence ID %s) in mapping dictionary." % (
+                     degap_seq, seq_id))
+            replacement = map_dict[degap_seq]
+        write_fasta(seq_id, header + replacement + footer)
+
+def do_removen(opts):
+    filename = opts[0]
+    c = 0
+    for seq_id, seq in FastaFile(filename):
+        if ('n' not in seq) and ('N' not in seq):
+            write_fasta(seq_id, seq)
+        else:
+            c += 1
+    print >>sys.stderr, "Removed %d sequences" % c
+
+def do_common_seq(opts):
+    maps_id2seq = []
+    maps_dseq2id = []
+    sets = []
+    outfiles = []
+    for filename in opts:
+        outfiles.append(open(filename + ".common", "w"))
+        m_id2seq = {}
+        m_dseq2id = {}
+        s = set()
+        for seq_id, seq in FastaFile(filename):
+            dseq = degap(seq).upper()
+
+            m_id2seq[seq_id] = seq
+            m_dseq2id[dseq] = seq_id
+            s.add(dseq)
+        print >>sys.stderr, "%s has %d sequences (%d unique)." % (filename,
+                                                                  len(m_id2seq),
+                                                                  len(s))
+        sets.append(s)
+        maps_id2seq.append(m_id2seq)
+        maps_dseq2id.append(m_dseq2id)
+
+    s0 = sets[0]
+    for s in sets:
+        print >>sys.stderr, "%d unique degapped sequences so far" % len(s0)
+        s0 = s0.intersection(s)
+
+    print >>sys.stderr, "%d common unique degapped sequences" % len(s0)
+    for i in xrange(0, len(outfiles)):
+        outfile = outfiles[i]
+        m_id2seq  = maps_id2seq[i]
+        m_dseq2id = maps_dseq2id[i]
+        for dseq in s0:
+            seq_id = m_dseq2id[dseq]
+            write_fasta_to_file(outfile, seq_id, m_id2seq[seq_id])
+
+def do_derepl(opts):
+    filename = opts[0]
+    do_degap = False
+    if len(opts) > 1:
+        if opts[1] == "degap":
+            do_degap = True
+            print >>sys.stderr, "Will dereplicate with degapping."
+
+    names_file = open(filename + ".names", "w")
+    derepl_file = open(filename + ".derepl", "w")
+
+    groups = {}
+    withgaps = {}
+    n = 0
+    for seq_id, seq in FastaFile(filename):
+        n += 1
+
+        if do_degap:
+            aseq = degap(seq).upper()
+        else:
+            aseq = seq.upper()
+
+        if aseq not in groups:
+            withgaps[aseq] = seq
+            groups[aseq] = []
+        (groups[aseq]).append(seq_id)
+
+    print >>sys.stderr, "Dereplicating from %d to %d sequences" % (n, len(groups))
+
+    print >>sys.stderr, "Writing to %s.derepl..." % filename
+    # Write out derepl file
+    for k, v in groups.items():
+        seq_id = v[0]
+        write_fasta_to_file(derepl_file, seq_id, withgaps[k])
+
+    print >>sys.stderr, "Writing to %s.names..." % filename
+    # Write out names file
+    for group in groups.values():
+        names_file.write("%s " % group[0])
+        i = 0
+        while i < len(group):
+            seqid = (group[i])
+            if i == len(group) - 1:
+                names_file.write("%s" % seqid)
+            else:
+                names_file.write("%s," % seqid)
+            i += 1
+        names_file.write("\n")
+
+def do_pad(opts):
+    filename = opts[0]
+    # Read maximum sequence length
+    lmax = 0
+    for seq_id, seq in FastaFile(filename):
+        l = len(seq)
+        if l > lmax:
+            lmax = l
+
+    for seq_id, seq in FastaFile(filename):
+        if len(seq) < lmax:
+            seq = seq + ('-' * (lmax - len(seq)))
+        write_fasta(seq_id, seq)
+
+def do_sizehist(opts):
+    filename = opts[0]
+
+    m = {}
+    for seq_id, seq in FastaFile(filename):
+        l = len(seq)
+        if l in m:
+            m[l] += 1
+        else:
+            m[l] = 1
+    for k,v in m.items():
+        print "%d : %d" % (k, v)
+
+def do_align(opts):
+    filename = opts[0]
+    num = int(opts[1])
+
+    n = 0
+    for seq_id, seq in FastaFile(filename):
+        if is_gap(seq[num-1]):
+            n += 1
+        while is_gap(seq[num-1]):
+            seq = seq[:num-1] + seq[num:]
+        write_fasta(seq_id, seq)
+    print >>sys.stderr, "aligned %d sequences" % n
+
+def do_sizeavg(opts):
+    filename = opts[0]
+
+    total = 0
+    n = 0
+    for seq_id, seq in FastaFile(filename):
+        total += len(degap(seq))
+        n += 1
+    print("'%s' average = %.4f" % (opts[0], float(total) / float(n)))
+
+def phylipize(s):
+    if len(s) > 10:
+        return s[0:10]
+    else:
+        return s + '_' * (10 - len(s))
+
+def do_phylip(opts):
+    filename = opts[0]
+    for seq_id, seq in FastaFile(filename):
+        write_fasta(phylipize(seq_id), seq)
+
+def do_phylip_names(opts):
+    handle = open(opts[0])
+    for line in handle:
+        arr1 = line.split()
+        head = arr1[0]
+        tail = arr1[1]
+        arr2 = tail.split(",")
+        sys.stdout.write("%s " % phylipize(head))
+        sys.stdout.write("%s" % phylipize(arr2[0]))
+        for sid in arr2[1:]:
+            sys.stdout.write(",%s" % phylipize(sid))
+        sys.stdout.write("\n")
+
+def do_pickout(opts):
+    handle = open(opts[1])
+    otus = set()
+    for line in handle:
+        line = line.strip()
+        if len(line) >= 10:
+            line = line[0:10]
+            otus.add(line)
+
+    filename = opts[0]
+    for seq_id, seq in FastaFile(filename):
+        if seq_id in otus:
+            write_fasta(seqid, seq)
+
+def do_shuffle(opts):
+    filename = opts[0]
+    seqs = []
+    for seq_id, seq in FastaFile(filename):
+        seqs.append((seq, seq_id))
+    random.shuffle(seqs)
+    for seq in seqs:
+        write_fasta(seq[1], seq[0])
+
+def do_split(opts):
+    filename = opts[0]
+    num = int(opts[1])
+
+    f = 1
+    c = 0
+    out_file = None
+    for seq_id, seq in FastaFile(filename):
+        if c == 0:
+            out_file = open(filename + ('-%d' % f), 'w')
+        write_fasta_to_file(out_file, seq_id, seq)
+        c += 1
+        if (c % num) == 0:
+            out_file.close()
+            f += 1
+            out_file = open(filename + ('-%d') % f, 'w')
+
+def do_select(opts):
+    filename = opts[0]
+    seqs = opts[1:]
+    for seq_id, seq in FastaFile(filename):
+        if seq_id in seqs:
+            write_fasta(seq_id, seq)
+
+def do_remove_from(opts):
+    to_remove = []
+    for line in open(opts[1]):
+        to_remove.append(line.strip())
+
+    for seq_id, seq in FastaFile(opts[0]):
+        if seq_id not in to_remove:
+            write_fasta(seq_id, seq)
+
+def do_remove_empty(opts):
+    seqs = []
+    filename = opts[0]
+    for seq_id, seq in FastaFile(filename):
+        seqs.append( (seq_id, seq) )
+
+    l = len((seqs[0])[1])
+    for seqid, seq in seqs:
+        if len(seq) != l:
+            raise Exception("Sequence 1 has length %d but found sequence of length"
+                            " %d!" % (l, len(seq)))
+
+    s = set()
+    for i in xrange(0, l):
+        s.add(i)
+
+    for seqid, seq in seqs:
+        for i in xrange(0, l):
+            if not is_gap(seq[i]):
+                if i in s:
+                    s.remove(i)
+
+    # Now make complement of s
+    p = []
+    for i in xrange(0, l):
+        if i not in s:
+            p.append(i)
+
+    print >>sys.stderr, "Removing %d columns" % (l - len(p))
+
+    # Finally construct the output sequences
+    for seqid, seq in seqs:
+        nseq = ""
+        for i in p:
+            nseq += seq[i]
+
+        write_fasta(seqid, nseq)
+
+def do_remove_pound(opts):
+    filename = opts[0]
+    for seq_id, seq in FastaFile(filename):
+        if seq_id[0] != "#":
+            write_fasta(seqid, seq)
+
+def do_remove_if(opts):
+    filename = opts[0]
+    A = int(opts[1])
+    for seq_id, seq in FastaFile(filename):
+        if is_gap(seq[A-1]):
+            write_fasta(seq_id, seq)
+
+def do_strip_n(opts):
+    filename = opts[0]
+    for seq_id, seq in FastaFile(filename):
+        write_fasta(seq_id, seq.upper().strip('N'))
+
+def do_subset(opts):
+    import random
+    filename = opts[0]
+    N = int(opts[1])
+    l = []
+    m = {}
+    for seq_id, seq in FastaFile(filename):
+        l.append(seq_id)
+        m[seq_id] = seq
+
+    l2 = random.sample(l, N)
+    for seqid in l2:
+        write_fasta(seqid, m[seqid])
+
+def do_remove_if_range(opts):
+    filename = opts[0]
+    A,B = interpret_range(opts[1])
+    c = 0
+    for seq_id, seq in FastaFile(filename):
+        bang = False
+        for i in xrange(A,B+1):
+            if not is_gap(seq[i-1]):
+                bang = True
+        if not bang:
+            write_fasta(seqid, seq)
+        else:
+            c += 1
+    print >>sys.stderr, "Removed %d sequences" % c
+
+def do_dnadist_to_mothur(opts):
+    handle = open(opts[0])
+    # Drop first line
+    handle.readline()
+    seqs = []
+    for line in handle:
+        if line[0] != ' ' and line[0] != '\n':
+            arr = line.split()
+            seqs.append(arr[0])
+
+    # Now read the file again
+    handle = open(opts[0])
+    handle.readline()
+    seq1 = ''
+    seqidx1 = -1
+    seqidx2 = 0
+    for line in handle:
+        arr = line.split()
+        seq2s = []
+        if line[0] != ' ' and line[0] != '\n':
+            seqidx1 += 1
+            seqidx2 = 0
+            seq1 = arr[0]
+            seq2s = arr[1:]
+        else:
+            seq2s = arr
+
+        for dist in seq2s:
+            seq2 = seqs[seqidx2]
+            if seqidx2 > seqidx1:
+                print "%s %s %s" % (seq1, seq2, dist)
+            seqidx2 += 1
+
+#####################################################################
+# Main
+#####################################################################
+
+cmds = {
+  # [ "command", function, "help text usage", "help text long description", "help text short description" ],
+    "abund":               [do_abund,
+                            "abund FASTA",
+                            "Like abund-all, but only one number is displayed\n"
+                            "for each group of clones. c.f. abund-all.",
+                            "Display a map: sequence -> abundance"],
+    "abund-all":           [do_abundall,
+                            "abund-all FASTA",
+                            "Print a map: for each sequence, print how many\n"
+                            "clones of them are in the dataset. Note: the number\n"
+                            "is displayed for each sequence. c.f. abund.",
+                            "Display a map: sequence -> abundance"],
+    "align":               [do_align,
+                            "align FASTA NUM",
+                            "Align the sequence by removing gaps until there's\n"
+                            "a letter at NUM.",
+                            "Align the sequence until there's a letter at NUM."],
+    "capitalize":          [do_capitalize,
+                            "capitalize FASTA",
+                            "Capitalize all letters in FASTA.",
+                            "Capitalize sequences."],
+    "common-seq":          [do_common_seq,
+                            "common-seq FASTA1 FASTA2...",
+                            "Pick out common sequences.",
+                            "Pick out common sequences."],
+    "count":               [do_count,
+                            "count FASTA",
+                            "Display how many sequences are in FASTA.",
+                            "Count how many sequences."],
+    "cull":                [do_cull,
+                            "cull FASTA LIST",
+                            "Removes sequences from FASTA whose ID is listed in\n"
+                            "LIST. LIST is simply a text file with each sequence\n"
+                            "ID on a separate line.",
+                            "Remove a list of sequences."],
+    "cut":                 [do_cut,
+                            "cut FASTA A-B",
+                            "Cuts out the A-B portion of the multiple alignment\n"
+                            "in FASTA.",
+                            "Cut out a piece of the multiple alignment."],
+    "degap":               [do_degap,
+                            "degap FASTA",
+                            "Degap sequences.",
+                            "Degap sequences."],
+    "dereplicate":         [do_derepl,
+                            "dereplicate FASTA [degap]",
+                            "Dereplicate a FASTA file (optionally degapping).\n"
+                            "Creates two files, FASTA.names and FASTA.derepl.",
+                            "Dereplicate a FASTA file (optionally degapping)."],
+    "dnadist-to-mothur":   [do_dnadist_to_mothur,
+                            "dnadist-to-mothur DISTANCE_MATRIX",
+                            "Convert a dnadist distance matrix to mothur format,\n"
+                            "i.e. 3 column format.",
+                            "Convert DNADIST to Mothur distance matrix."],
+    "find":                [do_find,
+                            "find FASTA INDEX",
+                            "Report all sequences that have a letter in INDEX-th\n"
+                            "column. c.f. find-gap",
+                            "Find sequences with a letter in INDEX-th column."],
+    "find-gap":            [do_findgap,
+                            "find FASTA INDEX",
+                            "Report all sequences that have a gap in INDEX-th\n"
+                            "column. c.f. find",
+                            "Find sequences with a gap in INDEX-th column."],
+    "fix-jalview":         [do_fixjalview,
+                            "fixjalview FASTA",
+                            "Remove anything following '/' in sequences' IDs.",
+                            "Remove anything following '/' in sequences' IDs."],
+    "help":                [do_help,
+                            "help COMMAND",
+                            "Display help about a COMMAND.",
+                            "Show detailed help."],
+    "merge":               [do_merge,
+                            "merge FASTA1 into FASTA2 A-B",
+                            "Merge FASTA1 into the A-B part of FASTA2.",
+                            "Merge one alignment into the subset of another."],
+    "pad":                 [do_pad,
+                            "pad FASTA",
+                            "Pad sequence with gaps (-).",
+                            "Pad sequence with gaps."],
+    "phylip":              [do_phylip,
+                            "phylip FASTA",
+                            "Make all sequence IDs 10 characters long. This is\n"
+                            "used for phylip's dnadist which is lame like that.",
+                            "Pad sequence IDs to 10 characters."],
+    "split":               [do_split,
+                            "split FASTA NUM",
+                            "Split a FASTA file into a number of files each\n"
+                            "with NUM sequences.",
+                            "Split fasta file into chunks."],
+    "strip-n":             [do_strip_n,
+                            "strip-n FASTA",
+                            "Strip N nucleotides from sequence ends",
+                            "Strip N nucleotides from sequence ends"],
+    "phylip-names":        [do_phylip_names,
+                            "phylip-names NAMES",
+                            "Pad sequence IDs to 10 characters in the names file.\n"
+                            "See also: phylip.",
+                            "Pad sequence IDs to 10 characters in the names file."],
+    "pickout":             [do_pickout,
+                            "pickout FASTA LISTFILE",
+                            "Pickout sequences that are listed in the LISTFILE.",
+                            "Pickout sequences that are listed in the LISTFILE."],
+    "remove-from":         [do_remove_from,
+                            "remove-from FASTA FILE",
+                            "Remove sequences from FASTA. Sequences are given in FILE.\n"
+                            "List is given as sequence of ID names separated by newlines.",
+                            "Remove sequences from FASTA. Sequences are given in FILE."],
+    "remove-empty":        [do_remove_empty,
+                            "remove-empty FASTA",
+                            "Remove empty columns in FASTA.",
+                            "Remove empty columns."],
+    "remove-if":           [do_remove_if,
+                            "remove-if FASTA A",
+                            "Remove a sequence in FASTA if it has any letter\n"
+                            "in column A.",
+                            "Remove sequences that have a letter in a given column." ],
+    "remove-if-range":     [do_remove_if_range,
+                            "remove-if-range FASTA A-B",
+                            "Remove a sequence in FASTA if it has any letter\n"
+                            "in columns A through B.",
+                            "Remove sequences that have a letter in given range."],
+    "remove-n":            [do_removen,
+                            "remove-n FASTA",
+                            "Remove a sequence in FASTA if it has an 'n' or an\n"
+                            "'N' in it.",
+                            "Remove sequences with n/N."],
+    "remove-pound":        [do_remove_pound,
+                            "remove-pound FASTA",
+                            "Remove all sequences that start with pound (#).\n"
+                            "This is used to remove Infernal's secondary\n"
+                            "structure sequence.",
+                            "Remove sequences whose ID starts with pound (#)."],
+    "select":              [do_select,
+                            "select FASTA SEQ1 [SEQ2 SEQ3...]",
+                            "Selects sequences by ID.",
+                            "Selects sequences by ID."],
+    "shuffle":             [do_shuffle,
+                            "shuffle FASTA",
+                            "Shuffle the order of sequences in FASTA.",
+                            "Shuffles the order of sequences."],
+    "subset":              [do_subset,
+                            "subset FASTA n",
+                            "Pickout a random subset of n sequences from FASTA.",
+                            "Subset of n sequences."],
+    "size-avg":            [do_sizeavg,
+                            "size-avg FASTA",
+                            "Calculate average sequence length (without gaps).",
+                            "Calculate average sequence length (without gaps)."],
+    "size-hist":           [do_sizehist,
+                            "size-hist FASTA",
+                            "Output histogram of sequence lengths (with gaps).",
+                            "Output histogram of sequence lengths (with gaps)."],
+  }
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    if len(argv) < 2:
+        print_usage()
+        return 0
+
+    command = argv[1]
+    command_opts = argv[2:]
+
+    # Look through cmds
+    if command in cmds.keys():
+        cmds[command][0](command_opts)
+        return 0
+    else:
+        print "Unknown command %s" % command
+
+if __name__ == "__main__":
+    sys.exit(main())
