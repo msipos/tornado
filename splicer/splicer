@@ -263,10 +263,11 @@ def do_merge(opts):
 
     # Construct a dictionary of aligned sequences
     map_dict = {} # ungapped -> sequence snippet
-    l_mapped = 0
+    l_max = 0
     for seq_id, seq in FastaFile(filename_aligned):
         map_dict[degap(seq)] = capitalize(seq)
-        l_mapped = len(seq)
+        if len(seq) > l_max:
+            l_max = len(seq)
 
     # Put in the aligned sequences
     for seq_id, seq in FastaFile(filename_unaligned):
@@ -278,13 +279,16 @@ def do_merge(opts):
         degap_seq = degap(snippet)
         replacement = None
         if degap_seq == '':
-            replacement = l_mapped * '-'
+            replacement = l_max * '-'
         else:
             if degap_seq not in map_dict:
                 raise Exception(
                   "Could not find '%s' (sequence ID %s) in mapping dictionary." % (
                      degap_seq, seq_id))
             replacement = map_dict[degap_seq]
+            # Pad replacement too
+            if len(replacement) != l_max:
+                replacement = replacement + (l_max-len(replacement))*'-'
         write_fasta(seq_id, header + replacement + footer)
 
 def do_removen(opts):
