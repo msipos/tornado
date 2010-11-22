@@ -278,7 +278,7 @@ def do_merge(opts):
         degap_seq = degap(snippet)
         replacement = None
         if degap_seq == '':
-            replacement = l_mapped * ' '
+            replacement = l_mapped * '-'
         else:
             if degap_seq not in map_dict:
                 raise Exception(
