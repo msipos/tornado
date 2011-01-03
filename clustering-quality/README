@@ -1,0 +1,37 @@
+This tool calculates the Calinski-Harabasz index for the given clustering.
+
+Build the tool via
+
+  ./build.sh
+
+You will need GCC and Glib 2 to build the tool.  Any standard Linux distribution should have these.  You may need "development" packages, for example, under Ubuntu you need to install the libglib2.0-dev package.
+
+Run the tool via
+
+  ./cluster-quality  FASTA_FILE  CLUSTERING_FILE
+
+Here, the clustering file must be in the following format:
+  - Each cluster is on a separate line. 
+  - Names of the elements of the cluster are separated by commas.
+For instance, a possible clustering of 3 elements (called E1, E2 and E3):
+
+E1,E2
+E3
+
+In the clustering above, there are 2 clusters, one is E1+E2 and the other is just E3.
+
+Another possible clustering of 5 elements:
+E1
+E2
+E3,E4,E5
+
+Above, there are 3 clusters, two singletons and one with three elements, E3, E4 and E5.
+
+The names of elements (i.e. sequences), E1 through E5 above, have to correspond to those in the FASTA file. For instance:
+
+>E1
+ACGTACGT..
+>E2
+ACGTACCT..
+
+
