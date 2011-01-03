@@ -1,0 +1,9 @@
+To build, run
+
+  ./build.sh
+
+To execute
+
+  ./tree-distance  TREE_FILENAME  >  MATRIX_FILENAME
+
+will generate the distance matrix from the given tree (must be in Newick format).
