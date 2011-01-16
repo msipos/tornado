@@ -1,0 +1,35 @@
+                  INSTALLATION
+
+To build, run:
+
+./build.sh
+
+Make sure you have GNU C++ compiler (g++).
+
+                     RUNNING
+
+./c-linkage DIST_MATRIX NAMES_FILE OPTIONS
+
+where OPTIONS is one of following:
+
+  every NUMBER upto FRACTION
+
+or
+
+  only FRACTION
+
+These two are best described by example:
+
+./c-linkage DIST_MATRIX NAMES_FILE only 0.03
+
+This will create a single clustering at 3 percent distance.
+
+./c-linkage DIST_MATRIX NAMES_FILE every 10 upto 0.03
+
+It will create clusterings at steps of 10 OTUs, until the 3 percent
+distance is reached.
+
+                      OUTPUT
+
+cluster.list   - list of all OTUs in mothur format
+cluster.rabund - rank abundance
