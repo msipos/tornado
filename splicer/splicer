@@ -411,8 +411,12 @@ def do_sizehist(opts):
             m[l] += 1
         else:
             m[l] = 1
+    ks = []
     for k,v in m.items():
-        print "%d : %d" % (k, v)
+        ks.append(k)
+    ks.sort()
+    for k in ks:
+        print "%d : %d" % (k, m[k])
 
 def do_align(opts):
     filename = opts[0]
