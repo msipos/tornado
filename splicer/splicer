@@ -157,6 +157,54 @@ def do_abund(opts):
     for key in uniq.keys():
         print "{0} {1}".format(names[key], uniq[key])
 
+def do_binary(opts):
+    filename = opts[0]
+
+    uniq = {}
+    for seq_id, seq in FastaFile(filename):
+        seq = seq.upper()
+        l = len(seq)
+        if seq not in uniq:
+            uniq[seq] = 1
+        else:
+            uniq[seq] += 1
+
+    # Print abundances
+    for seq in uniq:
+        print "{0} ".format(uniq[seq]),
+    print
+
+    # For each base
+    for i in xrange(0, l):
+        for seq in uniq:
+            if seq[i] == 'A':
+                print "1 ",
+            else:
+                print "0 ",
+        print
+
+        for seq in uniq:
+            if seq[i] == 'C':
+                print "1 ",
+            else:
+                print "0 ",
+        print
+
+        for seq in uniq:
+            if seq[i] == 'G':
+                print "1 ",
+            else:
+                print "0 ",
+        print
+
+        for seq in uniq:
+            if seq[i] == 'T':
+                print "1 ",
+            else:
+                print "0 ",
+        print
+
+
 def do_abundall(opts):
     filename = opts[0]
 
@@ -661,6 +709,13 @@ cmds = {
                             "Align the sequence by removing gaps until there's\n"
                             "a letter at NUM.",
                             "Align the sequence until there's a letter at NUM."],
+    "binary":              [do_binary ,
+                            "binary FASTA",
+                            "Output sequences in binary format.  Output is in\n"
+                            "form of a matrix whose first row are sequence\n"
+                            "abundances.  Then each base is 4 rows where\n"
+                            "A = 1000, C = 0100, G = 0010, T = 0001 and - = 0000.",
+                            "Output sequences in binary format."],
     "capitalize":          [do_capitalize,
                             "capitalize FASTA",
                             "Capitalize all letters in FASTA.",
