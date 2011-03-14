@@ -186,6 +186,33 @@ def do_capitalize(opts):
     for seq_id, seq in FastaFile(filename):
         write_fasta(seq_id, capitalize(seq))
 
+def do_cluster_fasta(opts):
+    fasta = opts[0]
+    clustering = opts[1]
+    seq_map = {}
+    for seq_id, seq in FastaFile(fasta):
+        seq_map[seq_id] = seq.upper()
+        l = len(seq)
+
+    clusters = []
+    for line in open(clustering):
+        line = line.strip()
+        clusters.append(line.split(","))
+
+    for cluster in clusters:
+        # Print header
+        print(">{0}".format(",".join(cluster)))
+        letters = ['A', 'C', 'G', 'T']
+        for letter in letters:
+            for i in xrange(0, l):
+                dens = 0.0
+                for seq_id in cluster:
+                    seq = seq_map[seq_id]
+                    if seq[i] == letter:
+                        dens += 1.0
+                print "{0} ".format(dens/len(cluster)),
+            print
+
 def do_count(opts):
     filename = opts[0]
 
@@ -661,6 +688,10 @@ cmds = {
                             "capitalize FASTA",
                             "Capitalize all letters in FASTA.",
                             "Capitalize sequences."],
+    "cluster-fasta":       [do_cluster_fasta,
+                            "cluster-fasta FASTA CLUSTERING",
+                            "Convert to cluster-fasta format.",
+                            "Convert to cluster-fasta format."],
     "common-seq":          [do_common_seq,
                             "common-seq FASTA1 FASTA2...",
                             "Pick out common sequences.",
