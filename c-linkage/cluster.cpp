@@ -1,5 +1,13 @@
 #include "cluster.hpp"
 
+#define MODE_EVERY  1
+#define MODE_ONLY   2
+
+int mode;
+double maxdist;
+int every;
+double only;
+
 map <string, el_index> map_name_to_index;
 map <el_index, el_index> map_index_to_mult;
 map <el_index, vector<string> > map_names;
@@ -337,38 +345,42 @@ void do_rabund(float R)
   reverse(rabund.begin(), rabund.end());
 
   FILE* fl = fopen("cluster.list", "a");
-  if (R < 0.0)
-    fprintf(fl, "unique %" PRI_el_index " ", el_index(rabund.size()));
-  else
-    fprintf(fl, "%.6f   %" PRI_el_index " ", R, el_index(rabund.size()));
+  if (mode == MODE_ONLY){
+    for (int i = 0; i < int(list.size()); i++){
+      fprintf(fl, "%s\n", list[i].c_str());
+    }
+  } else {
+    if (R < 0.0)
+      fprintf(fl, "unique %" PRI_el_index " ", el_index(rabund.size()));
+    else
+      fprintf(fl, "%.6f   %" PRI_el_index " ", R, el_index(rabund.size()));
 
-  for (int i = 0; i < int(list.size()); i++){
-    fprintf(fl, "%s ", list[i].c_str());
+    for (int i = 0; i < int(list.size()); i++){
+      fprintf(fl, "%s ", list[i].c_str());
+    }
+    fprintf(fl, "\n");
   }
-  fprintf(fl, "\n");
   fclose(fl);
 
   fprintf(stderr, "  OTUs left to merge: %u\n", rabund.size());
 
   FILE* f = fopen("cluster.rabund", "a");
-  if (R < 0.0)
-    fprintf(f, "unique %" PRI_el_index " ", el_index(rabund.size()));
-  else
-    fprintf(f, "%.6f   %" PRI_el_index " ", R, el_index(rabund.size()));
-  for (int i = 0; i < int(rabund.size()); i++){
-    fprintf(f, "%d ", rabund[i]);
+  if (mode == MODE_ONLY){
+    for (int i = 0; i < int(rabund.size()); i++){
+      fprintf(f, "%d\n", rabund[i]);
+    }
+  } else {
+    if (R < 0.0)
+      fprintf(f, "unique %" PRI_el_index " ", el_index(rabund.size()));
+    else
+      fprintf(f, "%.6f   %" PRI_el_index " ", R, el_index(rabund.size()));
+    for (int i = 0; i < int(rabund.size()); i++){
+      fprintf(f, "%d ", rabund[i]);
+    }
+    fprintf(f, "\n");
   }
-  fprintf(f, "\n");
   fclose(f);
 }
-
-#define MODE_EVERY  1
-#define MODE_ONLY   2
-
-int mode;
-double maxdist;
-int every;
-double only;
 
 void cluster()
 {
