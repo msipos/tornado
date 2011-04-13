@@ -747,6 +747,20 @@ def do_remove_empty(opts):
 
         write_fasta(seqid, nseq)
 
+def do_remove_largest(opts):
+    fasta_filename = opts[0]
+    clustering_filename = opts[1]
+    clusters = []
+    for line in open(clustering_filename):
+        arr = line.strip().split(",")
+        clusters.append(arr)
+    clusters.sort(key=len)
+    clusters.reverse()
+    cluster = clusters[0]
+    for seq_id, seq in FastaFile(fasta_filename):
+        if seq_id not in cluster:
+            write_fasta(seq_id, seq)
+
 def do_remove_pound(opts):
     filename = opts[0]
     for seq_id, seq in FastaFile(filename):
@@ -972,6 +986,10 @@ cmds = {
                             "Remove a sequence in FASTA if it has any letter\n"
                             "in columns A through B.",
                             "Remove sequences that have a letter in given range."],
+    "remove-largest":      [do_remove_largest,
+                            "remove-largest FASTA CLUSTERING",
+                            "Remove largest OTU from FASTA.",
+                            "Remove largest OTU form FASTA."],
     "remove-n":            [do_removen,
                             "remove-n FASTA",
                             "Remove a sequence in FASTA if it has an 'n' or an\n"
