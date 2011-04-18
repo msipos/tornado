@@ -33,8 +33,20 @@ if [ ! -x $CLINKAGE ]; then
 fi
 
 $SPLICER dereplicate $FASTA
+if [ ! $? -eq 0 ]; then
+  exit $?
+fi
+
 $PSIDIST $FASTA.derepl > $FASTA.derepl.dist
-$CLINKAGE $FASTA.derepl.dist $FASTA.names $REST
+if [ ! $? -eq 0 ]; then
+  exit $?
+fi
 rm $FASTA.derepl
+
+$CLINKAGE $FASTA.derepl.dist $FASTA.names $REST
+if [ ! $? -eq 0 ]; then
+  exit $?
+fi
+
 rm $FASTA.derepl.dist
 rm $FASTA.names
