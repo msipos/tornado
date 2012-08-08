@@ -496,6 +496,27 @@ def do_removen(opts):
             c += 1
     print >>sys.stderr, "Removed %d sequences" % c
 
+def do_common_seq2(opts):
+    filename1 = opts[0]
+    filename2 = opts[1]
+
+    set1 = set()
+    set2 = set()
+    for seq_id, seq in FastaFile(filename1):
+        set1.add(seq_id)
+    for seq_id, seq in FastaFile(filename2):
+        set2.add(seq_id)
+
+    n = 0
+    for seq_id, seq in FastaFile(filename1):
+        if seq_id in set1:
+            if seq_id in set2:
+                write_fasta(seq_id, seq)
+                n += 1
+    print >>sys.stderr, "Wrote %d sequences, %s had %d sequences, %s had %d sequences" % (
+        n, filename1, len(set1), filename2, len(set2)
+    )
+
 def do_common_seq(opts):
     maps_id2seq = []
     maps_dseq2id = []
@@ -905,6 +926,12 @@ cmds = {
                             "common-seq FASTA1 FASTA2...",
                             "Pick out common sequences.",
                             "Pick out common sequences."],
+    "common-seq2":         [do_common_seq2,
+                            "common-seq2 FASTA1 FASTA2",
+                            "Print out FASTA1 with only those sequences that are"
+                            "common (by ID) to all FASTA files." ,
+                            "Print out FASTA1 with only common sequences in it."
+                            ],
     "count":               [do_count,
                             "count FASTA",
                             "Display how many sequences are in FASTA.",
