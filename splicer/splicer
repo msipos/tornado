@@ -437,7 +437,7 @@ def do_fixgaps(opts):
     filename = opts[0]
 
     for seq_id, seq in FastaFile(filename):
-        seq.replace("-", ".")
+        seq = seq.replace("-", ".")
         write_fasta(seq_id, seq)
 
 def do_fixjalview(opts):
@@ -950,8 +950,8 @@ cmds = {
                             "Remove anything following '/' in sequences' IDs."],
     "fix-gaps":            [do_fixgaps,
                             "fixgaps FASTA",
-                            "Make all gaps uniform (convert '' to '').",
-                            "Make all gaps uniform (convert '' to '')"],
+                            "Make all gaps uniform (convert '-' to '.').",
+                            "Make all gaps uniform (convert '-' to '.')"],
     "help":                [do_help,
                             "help COMMAND",
                             "Display help about a COMMAND.",
