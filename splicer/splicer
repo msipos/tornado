@@ -433,6 +433,13 @@ def do_findgap(opts):
             print "Sequence id '%s' has '%s' in %d-th column." % (seq_id,
                   seq[ndx-1], ndx)
 
+def do_fixgaps(opts):
+    filename = opts[0]
+
+    for seq_id, seq in FastaFile(filename):
+        seq.replace("-", ".")
+        write_fasta(seq_id, seq)
+
 def do_fixjalview(opts):
     filename = opts[0]
 
@@ -588,6 +595,15 @@ def do_pad(opts):
         if len(seq) < lmax:
             seq = seq + ('-' * (lmax - len(seq)))
         write_fasta(seq_id, seq)
+
+def do_remove_short(opts):
+    filename = opts[0]
+    N = int(opts[1])
+
+    for seq_id, seq in FastaFile(filename):
+        dseq = degap(seq)
+        if len(dseq) >= N:
+            write_fasta(seq_id, seq)
 
 def do_sizehist(opts):
     filename = opts[0]
@@ -932,6 +948,10 @@ cmds = {
                             "fixjalview FASTA",
                             "Remove anything following '/' in sequences' IDs.",
                             "Remove anything following '/' in sequences' IDs."],
+    "fix-gaps":            [do_fixgaps,
+                            "fixgaps FASTA",
+                            "Make all gaps uniform (convert '' to '')."
+                            "Make all gaps uniform (convert '' to '')"],
     "help":                [do_help,
                             "help COMMAND",
                             "Display help about a COMMAND.",
@@ -1001,6 +1021,10 @@ cmds = {
                             "This is used to remove Infernal's secondary\n"
                             "structure sequence.",
                             "Remove sequences whose ID starts with pound (#)."],
+    "remove-short":        [do_remove_short,
+                            "remove-short FASTA N",
+                            "Remove all sequences shorter than N non-gap base pairs.",
+                            "Remove all sequences shorter than N non-gap base pairs."],
     "select":              [do_select,
                             "select FASTA SEQ1 [SEQ2 SEQ3...]",
                             "Selects sequences by ID.",
