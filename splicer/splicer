@@ -950,7 +950,7 @@ cmds = {
                             "Remove anything following '/' in sequences' IDs."],
     "fix-gaps":            [do_fixgaps,
                             "fixgaps FASTA",
-                            "Make all gaps uniform (convert '' to '')."
+                            "Make all gaps uniform (convert '' to '').",
                             "Make all gaps uniform (convert '' to '')"],
     "help":                [do_help,
                             "help COMMAND",
