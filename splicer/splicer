@@ -440,6 +440,32 @@ def do_fixgaps(opts):
         seq = seq.replace("-", ".")
         write_fasta(seq_id, seq)
 
+def align_stats(filename):
+    first = True
+    l = 0
+    counts = []
+    for seq_id, seq in FastaFile(filename):
+        if first:
+            first = False
+            l = len(seq)
+            for i in xrange(0, l):
+                counts.append(0)
+        if len(seq) != l:
+            print "Sequence id '%s' is not the same length as others." % seq_id
+            break
+        for i in xrange(0, l):
+            if not is_gap(seq[i]):
+                counts[i] += 1
+    return counts
+
+def do_align_stats(opts):
+    filename = opts[0]
+
+    counts = align_stats(filename)
+
+    for count in counts:
+        print count
+
 def do_fixjalview(opts):
     filename = opts[0]
 
@@ -621,10 +647,14 @@ def do_remove_short(opts):
     filename = opts[0]
     N = int(opts[1])
 
+    num_removed = 0
     for seq_id, seq in FastaFile(filename):
         dseq = degap(seq)
         if len(dseq) >= N:
             write_fasta(seq_id, seq)
+        else:
+            num_removed += 1
+    print >>sys.stderr, "Removed %d sequences." % num_removed
 
 def do_sizehist(opts):
     filename = opts[0]
@@ -655,6 +685,32 @@ def do_align(opts):
             seq = seq[:num-1] + seq[num:]
         write_fasta(seq_id, seq)
     print >>sys.stderr, "aligned %d sequences" % n
+
+def do_fix_align(opts):
+    filename = opts[0]
+    multiplicity = int(opts[1]) # this is the number of sequences below which a base is considered spurious
+    num_bases = int(opts[2]) # this is the number of spurious bases below which a sequence is dropped
+
+    counts = align_stats(filename)
+    l = len(counts)
+
+    num_spurious_bases = 0
+    for count in counts:
+        if count < multiplicity:
+            num_spurious_bases += 1
+    print >>sys.stderr, "Number of spurious bases possible: %d" % num_spurious_bases
+
+    for seq_id, seq in FastaFile(filename):
+        score = 0
+        for i in xrange(0, l):
+            if counts[i] < multiplicity:
+                if not is_gap(seq[i]):
+                    score += 1
+        if score > num_bases:
+            print >>sys.stderr, "Dropping sequence '%s', spur. bases: %d" % (seq_id, score)
+        else:
+            write_fasta(seq_id, seq)
+
 
 def do_sizeavg(opts):
     filename = opts[0]
@@ -695,14 +751,13 @@ def do_pickout(opts):
     otus = set()
     for line in handle:
         line = line.strip()
-        if len(line) >= 10:
-            line = line[0:10]
+        if len(line) >= 0:
             otus.add(line)
 
     filename = opts[0]
     for seq_id, seq in FastaFile(filename):
         if seq_id in otus:
-            write_fasta(seqid, seq)
+            write_fasta(seq_id, seq)
 
 def do_shuffle(opts):
     filename = opts[0]
@@ -900,6 +955,10 @@ cmds = {
                             "Align the sequence by removing gaps until there's\n"
                             "a letter at NUM.",
                             "Align the sequence until there's a letter at NUM."],
+    "align-stats":         [do_align_stats,
+                            "align-stats FASTA",
+                            "Give number of sequences that have a letter in each column.",
+                            "Give number of sequences that have a letter in each column."],
     "binary":              [do_binary,
                             "binary FASTA",
                             "Output sequences in binary format.  Output is in\n"
@@ -966,6 +1025,10 @@ cmds = {
                             "Report all sequences that have a letter in INDEX-th\n"
                             "column. c.f. find-gap",
                             "Find sequences with a letter in INDEX-th column."],
+    "fix-align":           [do_fix_align,
+                            "fixalign FASTA MULT NUMSBASES",
+                            "See code comments",
+                            "See code comments"],
     "find-gap":            [do_findgap,
                             "find FASTA INDEX",
                             "Report all sequences that have a gap in INDEX-th\n"
