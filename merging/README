@@ -1,0 +1,11 @@
+How to use the merging script:
+
+On the command line, type:
+
+  python voltron.py  NAST_FASTA  INFERNAL_FASTA  OUTPUT_FASTA  LOG.TXT
+
+NAST_FASTA refers to the file aligned via NAST, PyNAST or Mothur.
+INFERNAL_FASTA refers to the file aligned via Inferal or RDP Infernal.
+OUTPUT_FASTA and LOG.TXT will be created.
+
+To use the script you must have Biopython installed.
